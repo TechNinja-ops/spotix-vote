@@ -54,7 +54,17 @@ export default async function ElectionBallotPage({ params }: { params: Promise<{
     }))
   )
 
-  const votingClosed = election.status === "ended" || (election.votingEndsAt !== null && new Date(election.votingEndsAt) < new Date())
+  // Mirrors what cast_election_vote() itself enforces (election.status
+  // must be "active" AND voting_starts_at must have passed, else the
+  // RPC returns election_not_active / voting_not_started) — without
+  // this, a "draft"/"scheduled" election with candidates already
+  // loaded would render a live-looking ballot that only fails once the
+  // voter actually tries to submit.
+  const votingHasStarted =
+    election.status === "active" && (election.votingStartsAt === null || new Date(election.votingStartsAt) <= new Date())
+  const votingHasEnded =
+    election.status === "ended" || (election.votingEndsAt !== null && new Date(election.votingEndsAt) < new Date())
+  const votingOpen = votingHasStarted && !votingHasEnded
   const votedCount = officesWithCandidates.filter((o) => o.hasVoted).length
 
   return (
@@ -79,7 +89,8 @@ export default async function ElectionBallotPage({ params }: { params: Promise<{
           {election.description && <p className="mt-3 max-w-2xl text-sm text-muted">{election.description}</p>}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            {votingClosed && <Pill tone="muted">Voting closed</Pill>}
+            {!votingHasStarted && !votingHasEnded && <Pill tone="muted">Voting hasn&apos;t started yet</Pill>}
+            {votingHasEnded && <Pill tone="muted">Voting closed</Pill>}
             {election.resultsPublished && <Pill tone="brass">Results published</Pill>}
             {!election.resultsPublished && offices.length > 0 && (
               <Pill tone={votedCount === offices.length ? "success" : "muted"}>
@@ -108,11 +119,18 @@ export default async function ElectionBallotPage({ params }: { params: Promise<{
                 officeName={office.name}
                 candidates={office.candidates}
                 hasVoted={office.hasVoted}
-                votingClosed={votingClosed}
+                votingClosed={!votingOpen}
               />
             ))}
             {officesWithCandidates.length === 0 && (
               <p className="mt-2 text-center text-sm text-muted">No offices are open for voting yet — check back soon.</p>
+            )}
+            {officesWithCandidates.length > 0 && !votingHasStarted && !votingHasEnded && (
+              <p className="text-center text-sm text-muted">
+                {election.votingStartsAt
+                  ? `Voting opens ${new Date(election.votingStartsAt).toLocaleString()}.`
+                  : "Voting hasn't opened yet — check back soon."}
+              </p>
             )}
             {officesWithCandidates.length > 0 && (
               <p className="stub-divider" />

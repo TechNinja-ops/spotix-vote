@@ -20,7 +20,8 @@ import { fetchElection, fetchOffices } from "@/lib/election/db"
 import { Pill } from "@/components/Pill"
 import { SiteHeader } from "@/components/SiteHeader"
 import { Footer } from "@/components/Footer"
-import { SaleCountdown, hasSaleEnded } from "@/components/SaleCountdown"
+import { SaleCountdown } from "@/components/SaleCountdown"
+import { hasSaleEnded } from "@/lib/election/sale-window"
 
 export default async function ElectionOfficesPage({ params }: { params: Promise<{ electionId: string }> }) {
   const { electionId } = await params

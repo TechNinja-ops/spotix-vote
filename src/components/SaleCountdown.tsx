@@ -19,6 +19,9 @@
  */
 
 import { useEffect, useState } from "react"
+import { hasSaleEnded } from "@/lib/election/sale-window"
+
+export { hasSaleEnded }
 
 export function SaleCountdown({ endsAt, hideWhenEnded = false }: { endsAt: string; hideWhenEnded?: boolean }) {
   const [remainingMs, setRemainingMs] = useState(() => new Date(endsAt).getTime() - Date.now())
@@ -47,8 +50,3 @@ export function SaleCountdown({ endsAt, hideWhenEnded = false }: { endsAt: strin
   )
 }
 
-/** Same math as the component above, exposed standalone for callers that need a plain boolean (e.g. disabling a submit button) rather than rendering anything. */
-export function hasSaleEnded(endsAt: string | null): boolean {
-  if (!endsAt) return false
-  return new Date(endsAt).getTime() - Date.now() <= 0
-}

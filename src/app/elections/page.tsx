@@ -61,6 +61,7 @@ export default async function ElectionsPage() {
             {entries.map((entry) => {
               const { election } = entry
               const closed = election.status === "ended"
+              const notYetOpen = election.status !== "active" && !closed
               return (
                 <li key={entry.electionId} className="overflow-hidden rounded-2xl border border-line bg-ink-2">
                   <div className="flex items-center justify-between gap-4 p-5">
@@ -74,6 +75,7 @@ export default async function ElectionsPage() {
                           </Pill>
                         )}
                         {closed && <Pill tone="muted">Ended</Pill>}
+                        {notYetOpen && <Pill tone="muted">Not open yet</Pill>}
                         {election.status === "active" && !closed && <Pill tone="brass">Open now</Pill>}
                         {election.resultsPublished && <Pill tone="brass">Results published</Pill>}
                       </div>
@@ -82,7 +84,13 @@ export default async function ElectionsPage() {
                       href={`/election/${entry.electionId}`}
                       className="shrink-0 rounded-full bg-brass px-4 py-2.5 text-sm font-medium text-on-accent transition-colors hover:bg-brass-soft"
                     >
-                      {election.resultsPublished ? "View results" : entry.hasVotedAll ? "View" : "Vote"}
+                      {election.resultsPublished
+                        ? "View results"
+                        : entry.hasVotedAll
+                          ? "View"
+                          : notYetOpen
+                            ? "View"
+                            : "Vote"}
                     </Link>
                   </div>
                   <div className="stub-divider" />
