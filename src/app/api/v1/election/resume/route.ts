@@ -2,7 +2,7 @@
  * src/app/api/v1/election/resume/route.ts
  *
  * POST /api/v1/election/resume
- * Body: { reference }
+ * Body: { reference, currentOfficeId? }
  *
  * Backs the "Resume Payment" dialog: a candidate who paused at checkout
  * pastes the reference they were shown (e.g. SPTX-ELE-1787500960860-LK),
@@ -19,6 +19,17 @@
  * actually has in hand: just the reference. Reading Reference/{reference}
  * directly can't spuriously 404 for a real reference — it either exists
  * or it doesn't, full stop.
+ *
+ * `currentOfficeId` — the officeId of the page the candidate is resuming
+ * FROM (see the office page's ResumePaymentDialog and the
+ * payment-resume page, both of which know their own URL's officeId) —
+ * is compared against the officeId actually stored on the reference.
+ * A candidate can easily land on the wrong office's page (an old
+ * bookmark, a forwarded link for a different post) and paste a
+ * reference that belongs to a different office entirely; rather than
+ * silently resuming payment for an office they're not looking at, we
+ * tell them to go find the right one. `currentOfficeId` is optional so
+ * older clients that don't send it yet still work exactly as before.
  */
 
 import { NextRequest, NextResponse } from "next/server"
@@ -33,6 +44,7 @@ export async function POST(req: NextRequest) {
   }
 
   const reference = body.reference?.trim()
+  const currentOfficeId = body.currentOfficeId?.trim()
   if (!reference) {
     return NextResponse.json({ error: "reference is required" }, { status: 400 })
   }
@@ -48,6 +60,19 @@ export async function POST(req: NextRequest) {
     // that exists but belongs to a ticket or vote purchase isn't ours
     // to resume.
     return NextResponse.json({ error: "No form found for that reference" }, { status: 404 })
+  }
+
+  if (currentOfficeId && data.officeId && currentOfficeId !== data.officeId) {
+    return NextResponse.json(
+      {
+        error: `This reference is for "${data.officeName ?? "a different office"}", not the office you're viewing. Please go to the office you're contesting for to resume payment from there.`,
+        officeMismatch: true,
+        officeId: data.officeId,
+        officeName: data.officeName ?? "",
+        electionId: data.electionId ?? "",
+      },
+      { status: 409 }
+    )
   }
 
   return NextResponse.json({

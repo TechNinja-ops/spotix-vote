@@ -29,7 +29,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ off
   }
 
   const formFee = Number(office.form_fee ?? 0)
-  const fee = formFee > 0 ? computeElectionFormFee(formFee) : null
+  const fee = formFee > 0 ? await computeElectionFormFee(formFee, office.election_id) : null
 
   return NextResponse.json({
     electionId: election.id,

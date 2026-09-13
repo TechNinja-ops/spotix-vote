@@ -62,7 +62,11 @@ export function PaymentResumeClient() {
     fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reference }),
+      // currentOfficeId is ignored by /receipt (it doesn't cross-check),
+      // and is exactly what /resume needs to catch a candidate who
+      // followed a "pay later" link for one office but is somehow
+      // resuming a reference that belongs to a different one.
+      body: JSON.stringify({ reference, currentOfficeId: officeId }),
     })
       .then(async (res) => {
         const data = await res.json()

@@ -85,7 +85,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Paid office — create the pending Reference ──────────────────────────
-  const { serviceFee, totalAmount } = computeElectionFormFee(formFee)
+  // netAmount and paystackFeePayer are resolved here (from THIS
+  // ELECTION's current platform-fee settings — see lib/election/fees.ts,
+  // configured per election from the Admin Dashboard) and stashed on
+  // the Reference doc so spotix-backend's webhook credits the office
+  // the right amount later without needing to re-read settings itself
+  // (settings could change between purchase and webhook delivery — the
+  // amount actually charged/payable must stay pinned to what was quoted).
+  const { serviceFee, totalAmount, netAmount, paystackFeePayer } = await computeElectionFormFee(formFee, electionId)
   const reference = buildElectionReference()
 
   await adminDb.collection("Reference").doc(reference).set({
@@ -105,6 +112,8 @@ export async function POST(req: NextRequest) {
     formFee,
     serviceFee,
     totalAmount,
+    netAmount,
+    paystackFeePayer,
     createdAt: new Date().toISOString(),
   })
 

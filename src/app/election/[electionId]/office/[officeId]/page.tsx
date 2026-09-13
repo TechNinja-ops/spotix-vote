@@ -37,6 +37,7 @@ import { uploadCandidateBioData, BioDataTooLargeError } from "@/lib/election/bio
 import { BIO_DATA_CANDIDATE_NOTICE } from "@/lib/election/bio-data"
 import { PaymentMethodDialog } from "@/components/payment/PaymentMethodDialog"
 import { SaleCountdown, hasSaleEnded } from "@/components/SaleCountdown"
+import { FileDropzone } from "@/components/FileDropzone"
 
 interface OfficeQuestion {
   questionId: string
@@ -111,9 +112,7 @@ export default function CandidateFormPage() {
       })
   }, [officeId])
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function handlePhotoChange(file: File) {
     if (file.size > 5 * 1024 * 1024) {
       setPhotoError("Photo must be under 5MB")
       return
@@ -123,9 +122,7 @@ export default function CandidateFormPage() {
     setPhotoPreview(URL.createObjectURL(file))
   }
 
-  function handleBioDataChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function handleBioDataChange(file: File) {
     if (file.size > 10 * 1024 * 1024) {
       setBioDataError("File must be under 10MB")
       return
@@ -274,8 +271,8 @@ export default function CandidateFormPage() {
         <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/40 to-transparent" />
       </div>
 
-      <div className="mx-auto max-w-lg px-4 -mt-10 pb-24 sm:px-6">
-        <div className="rounded-2xl border border-line bg-ink-2/90 p-6 backdrop-blur sm:p-8">
+      <div className="mx-auto max-w-3xl px-4 -mt-10 pb-24 sm:px-6">
+        <div className="rounded-2xl border border-line bg-ink-2/90 p-6 backdrop-blur sm:p-8 lg:p-10">
           <p className="font-mono text-xs uppercase tracking-widest text-brass-soft">{office?.electionName}</p>
           <h1 className="mt-1 font-display text-2xl text-paper sm:text-3xl">{office?.officeName}</h1>
 
@@ -315,7 +312,7 @@ export default function CandidateFormPage() {
               <p className="mt-1 text-xs text-muted">Reach out to your election organiser if you think this is a mistake.</p>
             </div>
           ) : (
-          <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
             <label className="flex flex-col gap-1.5 text-sm text-paper">
               Full name
               <input required value={fullName} onChange={(e) => setFullName(e.target.value)} className={inputClass} />
@@ -332,46 +329,48 @@ export default function CandidateFormPage() {
               />
             </label>
 
-            <label className="flex flex-col gap-1.5 text-sm text-paper">
+            <label className="flex flex-col gap-1.5 text-sm text-paper sm:col-span-2">
               Phone
               <input required value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
             </label>
 
-            <label className="flex flex-col gap-1.5 text-sm text-paper">
-              Photo <span className="text-danger">*</span> (under 5MB)
-              <div className="flex items-center gap-3">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-line bg-ink">
-                  {photoPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoPreview} alt="Preview" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-xs text-muted">No photo</span>
-                  )}
-                </div>
-                <input type="file" accept="image/*" required onChange={handlePhotoChange} className="text-sm text-muted" />
-              </div>
-              <span className="text-xs text-muted">Required — voters will see this on the ballot.</span>
-              {photoError && <span className="text-sm text-danger">{photoError}</span>}
-            </label>
+            <div className="sm:col-span-2">
+              <FileDropzone
+                label="Photo"
+                required
+                hint="Under 5MB — voters will see this on the ballot."
+                accept="image/*"
+                variant="avatar"
+                file={photoFile}
+                previewUrl={photoPreview}
+                onFileSelected={handlePhotoChange}
+                error={photoError}
+              />
+            </div>
 
             {office?.bioDataRequired && (
-              <label className="flex flex-col gap-1.5 text-sm text-paper">
-                {office.bioDataLabel || "Bio data document"}
-                <input
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
+              <div className="sm:col-span-2">
+                <FileDropzone
+                  label={office.bioDataLabel || "Bio data document"}
                   required
-                  onChange={handleBioDataChange}
-                  className="text-sm text-muted"
+                  hint="PDF, JPG, PNG, or HEIC"
+                  accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
+                  file={bioDataFile}
+                  onFileSelected={handleBioDataChange}
+                  onClear={() => setBioDataFile(null)}
+                  error={bioDataError}
                 />
-                {bioDataFile && <span className="text-xs text-muted">Selected: {bioDataFile.name}</span>}
-                {bioDataError && <span className="text-sm text-danger">{bioDataError}</span>}
-                <span className="mt-1 text-xs text-muted">{BIO_DATA_CANDIDATE_NOTICE}</span>
-              </label>
+                <span className="mt-1.5 block text-xs text-muted">{BIO_DATA_CANDIDATE_NOTICE}</span>
+              </div>
             )}
 
             {office?.questions.map((q) => (
-              <label key={q.questionId} className="flex flex-col gap-1.5 text-sm text-paper">
+              <label
+                key={q.questionId}
+                className={`flex flex-col gap-1.5 text-sm text-paper ${
+                  q.questionType === "long_text" || q.questionType === "multi_select" ? "sm:col-span-2" : ""
+                }`}
+              >
                 {q.questionText}
                 {q.questionType === "long_text" ? (
                   <textarea
@@ -426,9 +425,9 @@ export default function CandidateFormPage() {
               </label>
             ))}
 
-            {errorMsg && <p className="text-sm text-danger">{errorMsg}</p>}
+            {errorMsg && <p className="text-sm text-danger sm:col-span-2">{errorMsg}</p>}
 
-            <Button type="submit" disabled={stage === "submitting"} className="mt-2 w-full">
+            <Button type="submit" disabled={stage === "submitting"} className="mt-2 w-full sm:col-span-2">
               {stage === "submitting" && !payLaterLoading
                 ? "Submitting…"
                 : office?.fee
@@ -441,13 +440,13 @@ export default function CandidateFormPage() {
                 type="button"
                 disabled={stage === "submitting"}
                 onClick={() => submitForm(true)}
-                className="w-full rounded-lg border border-line py-2.5 text-sm font-medium text-paper transition-colors hover:border-brass disabled:opacity-50"
+                className="w-full rounded-lg border border-line py-2.5 text-sm font-medium text-paper transition-colors hover:border-brass disabled:opacity-50 sm:col-span-2"
               >
-                {payLaterLoading ? "Saving your form…" : "Pay later — save my form and remind me"}
+                {payLaterLoading ? "Saving your form…" : "I'll pay later (save my form)"}
               </button>
             )}
 
-            <div className="flex flex-col items-center gap-1 pt-1">
+            <div className="flex flex-col items-center gap-1 pt-1 sm:col-span-2">
               {office?.fee && (
                 <button
                   type="button"
@@ -524,7 +523,7 @@ function ResumePaymentDialog({ office, onClose }: { office: OfficeDetail; onClos
       const res = await fetch("/api/v1/election/resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference: reference.trim() }),
+        body: JSON.stringify({ reference: reference.trim(), currentOfficeId: office.officeId }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? "Not found")
@@ -667,9 +666,7 @@ function EditDetailsDialog({ office, onClose }: { office: OfficeDetail; onClose:
     }
   }
 
-  function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  function handlePhotoChange(file: File) {
     if (file.size > 5 * 1024 * 1024) {
       setPhotoError("Photo must be under 5MB")
       return
@@ -723,7 +720,7 @@ function EditDetailsDialog({ office, onClose }: { office: OfficeDetail; onClose:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6 py-8 overflow-y-auto">
-      <div className="w-full max-w-sm rounded-xl border border-line bg-ink-2 p-6 sm:max-w-2xl sm:p-8">
+      <div className="w-full max-w-sm rounded-xl border border-line bg-ink-2 p-6 sm:max-w-2xl sm:p-8 lg:max-w-3xl">
         <h2 className="font-display text-lg text-paper">Edit my details</h2>
 
         {!candidate ? (
@@ -781,25 +778,27 @@ function EditDetailsDialog({ office, onClose }: { office: OfficeDetail; onClose:
                 Phone
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
               </label>
-              <label className="flex flex-col gap-1.5 text-sm text-paper sm:col-span-2">
-                Photo
-                <input type="file" accept="image/*" onChange={handlePhotoChange} className="text-sm text-muted" />
-                {photoPreview && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photoPreview} alt="Preview" className="mt-2 h-20 w-20 rounded-lg object-cover" />
-                )}
-                {photoError && <span className="text-sm text-danger">{photoError}</span>}
-              </label>
+              <div className="sm:col-span-2">
+                <FileDropzone
+                  label="Photo"
+                  hint="Under 5MB"
+                  accept="image/*"
+                  variant="avatar"
+                  file={photoFile}
+                  previewUrl={photoPreview}
+                  onFileSelected={handlePhotoChange}
+                  error={photoError}
+                />
+              </div>
 
               {office.bioDataRequired && (
-                <label className="flex flex-col gap-1.5 text-sm text-paper sm:col-span-2">
-                  {office.bioDataLabel || "Bio data document"}
-                  <input
-                    type="file"
+                <div className="sm:col-span-2">
+                  <FileDropzone
+                    label={office.bioDataLabel || "Bio data document"}
+                    hint="Leave blank to keep your previously uploaded document."
                     accept="application/pdf,image/jpeg,image/png,image/webp,image/heic"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
+                    file={bioDataFile}
+                    onFileSelected={(file) => {
                       if (file.size > 10 * 1024 * 1024) {
                         setBioDataError("File must be under 10MB")
                         return
@@ -807,13 +806,11 @@ function EditDetailsDialog({ office, onClose }: { office: OfficeDetail; onClose:
                       setBioDataError(null)
                       setBioDataFile(file)
                     }}
-                    className="text-sm text-muted"
+                    onClear={() => setBioDataFile(null)}
+                    error={bioDataError}
                   />
-                  <span className="text-xs text-muted">
-                    {bioDataFile ? `New file selected: ${bioDataFile.name}` : "Leave blank to keep your previously uploaded document."}
-                  </span>
-                  {bioDataError && <span className="text-sm text-danger">{bioDataError}</span>}
-                </label>
+                  {bioDataFile && <span className="mt-1.5 block text-xs text-muted">New file selected: {bioDataFile.name}</span>}
+                </div>
               )}
 
               {office.questions.map((q) => (

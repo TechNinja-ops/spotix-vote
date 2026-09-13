@@ -21,6 +21,8 @@ export interface ElectionRow {
   votingEndsAt: string | null
   resultsPublished: boolean
   editGraceDays: number
+  /** Organiser-controlled — see spotix-booker's AllowVoterPrefillCard. When false, /election/{id}/open refuses self-enlistment. */
+  allowVoterPrefill: boolean
 }
 
 export interface OfficeRow {
@@ -69,7 +71,9 @@ export type CandidateAnswerValue = string | string[]
 export async function fetchElection(electionId: string): Promise<ElectionRow | null> {
   const { data, error } = await supabaseAdmin
     .from("elections")
-    .select("id, organizer_id, name, description, image, status, voting_starts_at, voting_ends_at, results_published, edit_grace_days")
+    .select(
+      "id, organizer_id, name, description, image, status, voting_starts_at, voting_ends_at, results_published, edit_grace_days, allow_voter_prefill"
+    )
     .eq("id", electionId)
     .maybeSingle()
 
@@ -87,6 +91,7 @@ export async function fetchElection(electionId: string): Promise<ElectionRow | n
     votingEndsAt: data.voting_ends_at,
     resultsPublished: data.results_published ?? false,
     editGraceDays: data.edit_grace_days ?? 0,
+    allowVoterPrefill: data.allow_voter_prefill ?? false,
   }
 }
 
@@ -223,4 +228,88 @@ export async function fetchElectionsForVoterEmail(email: string) {
 
   return withProgress
 }
+
+// ── Self-enlistment ("Allow Voters Pre-fill") ───────────────────────────────
+//
+// The organiser-configured custom-field spec for this election's voter
+// list (see spotix-booker's setVoterFieldsSpec / FieldSpecSetup) — same
+// `election_voter_fields` table, read here so /election/{id}/open can
+// render the same fields the organiser's own CSV/manual-entry form asks
+// for, and enforce the same "required" rules.
+
+export interface VoterFieldSpec {
+  key: string
+  label: string
+  required: boolean
+}
+
+export async function fetchVoterFieldsSpec(electionId: string): Promise<VoterFieldSpec[]> {
+  const { data, error } = await supabaseAdmin
+    .from("election_voter_fields")
+    .select("fields")
+    .eq("election_id", electionId)
+    .maybeSingle()
+  if (error) throw error
+  return (data?.fields as VoterFieldSpec[]) ?? []
+}
+
+function genVoterId(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  let id = "sp-voter-"
+  for (let i = 0; i < 10; i++) id += chars.charAt(Math.floor(Math.random() * chars.length))
+  return id
+}
+
+function genVoterToken(): string {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  let token = ""
+  for (let i = 0; i < 24; i++) token += chars.charAt(Math.floor(Math.random() * chars.length))
+  return token
+}
+
+export interface SelfEnlistInput {
+  email: string
+  name: string
+  phone?: string
+  meta?: Record<string, string>
+}
+
+export type SelfEnlistResult = { ok: true; voterToken: string } | { ok: false; reason: "already_enlisted" }
+
+/**
+ * Inserts one voter-submitted row into `election_voters` — the same
+ * table spotix-booker's addVoters (CSV/manual) writes to, so a
+ * self-enlisted voter shows up in the organiser's VotersTab list
+ * exactly like any other. Callers (the /open page's API route) are
+ * responsible for checking `elections.allow_voter_prefill` first — this
+ * function itself doesn't re-check it, since it has no election-status
+ * opinion of its own beyond "does this table allow the insert".
+ *
+ * Returns `{ ok: false, reason: "already_enlisted" }` rather than
+ * throwing on a duplicate email for this election (the same
+ * uq_voter_email_per_election constraint addVoters relies on) — a
+ * voter revisiting /open after already enlisting is an expected, not
+ * exceptional, path.
+ */
+export async function selfEnlistVoter(electionId: string, input: SelfEnlistInput): Promise<SelfEnlistResult> {
+  const voterToken = genVoterToken()
+  const { error } = await supabaseAdmin.from("election_voters").insert({
+    id: genVoterId(),
+    election_id: electionId,
+    email: input.email.trim(),
+    name: input.name.trim(),
+    phone: input.phone?.trim() ?? "",
+    meta: input.meta ?? {},
+    voter_token: voterToken,
+    self_enlisted: true,
+  })
+
+  if (error) {
+    if (error.code === "23505") return { ok: false, reason: "already_enlisted" }
+    throw error
+  }
+
+  return { ok: true, voterToken }
+}
+
 
